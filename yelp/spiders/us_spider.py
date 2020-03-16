@@ -1,4 +1,5 @@
 import scrapy
+import pendulum
 
 from yelp.items import ProfileItem, ReviewItem
 
@@ -6,9 +7,14 @@ from yelp.items import ProfileItem, ReviewItem
 class SpiderUS(scrapy.Spider):
     name = 'us_spider'
     allowed_domains = ['yelp.com']
+    number = 20
     start_urls = [
-        'https://www.yelp.com/biz/nespresso-boutique-new-york-6'
+        "https://www.yelp.com/biz/nespresso-boutique-new-york-6?start=0"
     ]
+
+    def change_date_format(date):
+        dt = pendulum.from_format(date, 'M/D/YYYY')
+        return dt.to_date_string()
 
     def parse(self, response):
         profile_item = ProfileItem()
@@ -23,25 +29,59 @@ class SpiderUS(scrapy.Spider):
             """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[2]/div/div/section[2]/div/div[2]/div/div[2]/p[2]/text()"""
         ).get()
 
+        street = response.xpath(
+            """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/address/p[1]/span/text()"""
+        ).get()
+
+        city = response.xpath(
+            """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/address/p[2]/span/text()"""
+        ).get()
+
+        addr = response.xpath(
+            """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/div/p[1]/text()"""
+        ).get()
+
+        addr2 = response.xpath(
+            """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/div/p[2]/text()"""
+        ).get()
+
+        address = f"{street}, {city}, {addr}, {addr2}"
+
+        city_name = city.split(', ')[0]
+
         profile_item['name'] = name
         profile_item['category'] = category
         profile_item['phone'] = phone
+        profile_item['city'] = city_name
+        profile_item['address'] = address
 
-        reviews = response.xpath(
+        ratings = response.xpath(
             """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[3]/section[2]/div[2]/div"""
         ).css("div[aria-label*='rating']")
 
+        dates = response.css(".arrange-unit-fill__373c0__17z0h > .text-color--mid__373c0__3G312::text").extract()
+
         review_items = list()
 
-        for review in reviews:
-            rating = review.xpath('@aria-label').get().split(' ')[0]
+        for rating, date in zip(ratings, dates):
             review_item = ReviewItem()
+
+            rating = rating.xpath('@aria-label').get().split(' ')[0]
             review_item['rating'] = int(rating)
+
+            date = SpiderUS.change_date_format(date)
+            review_item['date'] = date
+
             review_items.append(dict(review_item))
 
         profile_item['reviews'] = review_items
 
         yield profile_item
+
+        next_url = f"https://www.yelp.com/biz/nespresso-boutique-new-york-6?start={SpiderUS.number}"
+        if SpiderUS.number < 60:
+            SpiderUS.number += 20
+            yield response.follow(next_url, callback=self.parse)
 
 
 
