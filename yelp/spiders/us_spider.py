@@ -17,6 +17,8 @@ class SpiderUS(scrapy.Spider):
         return dt.to_date_string()
 
     def parse(self, response):
+        # TODO do not collect toese data every single time
+        # TODO encoding
         profile_item = ProfileItem()
         name = response.css("h1::text").get()
 
@@ -61,9 +63,11 @@ class SpiderUS(scrapy.Spider):
 
         dates = response.css(".arrange-unit-fill__373c0__17z0h > .text-color--mid__373c0__3G312::text").extract()
 
+        reviews = response.css(".comment__373c0__3EKjH .lemon--span__373c0__3997G")
+
         review_items = list()
 
-        for rating, date in zip(ratings, dates):
+        for rating, date, review in zip(ratings, dates, reviews):
             review_item = ReviewItem()
 
             rating = rating.xpath('@aria-label').get().split(' ')[0]
@@ -72,6 +76,11 @@ class SpiderUS(scrapy.Spider):
             date = SpiderUS.change_date_format(date)
             review_item['date'] = date
 
+            review_text_fragments = review.xpath('text()').extract()
+            review_text = "".join(review_text_fragments)
+            review_item['review'] = review_text
+
+
             review_items.append(dict(review_item))
 
         profile_item['reviews'] = review_items
@@ -79,7 +88,7 @@ class SpiderUS(scrapy.Spider):
         yield profile_item
 
         next_url = f"https://www.yelp.com/biz/nespresso-boutique-new-york-6?start={SpiderUS.number}"
-        if SpiderUS.number < 60:
+        if SpiderUS.number < 40:
             SpiderUS.number += 20
             yield response.follow(next_url, callback=self.parse)
 
