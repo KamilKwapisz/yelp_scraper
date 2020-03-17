@@ -15,36 +15,36 @@ class SpiderUS(scrapy.Spider):
     def change_date_format(date):
         dt = pendulum.from_format(date, 'M/D/YYYY')
         return dt.to_date_string()
+        
 
     def parse(self, response):
         # TODO do not collect toese data every single time
-        # TODO encoding
         profile_item = ProfileItem()
         name = response.css("h1::text").get()
 
         categories = response.xpath(
-            """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[1]/div/div/span[2]/span/a/text()"""
+            """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[1]/div/div/span[2]/span/a/text()"""
         ).getall()
         category = " > ".join(categories)
 
         phone = response.xpath(
-            """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[2]/div/div/section[2]/div/div[2]/div/div[2]/p[2]/text()"""
-        ).get()
+            """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[2]/div/div/section[2]/div/div[2]/div/div[2]/p[2]/text()"""
+        ).get(None)
 
         street = response.xpath(
-            """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/address/p[1]/span/text()"""
+            """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/address/p[1]/span/text()"""
         ).get()
 
         city = response.xpath(
-            """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/address/p[2]/span/text()"""
+            """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/address/p[2]/span/text()"""
         ).get()
 
         addr = response.xpath(
-            """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/div/p[1]/text()"""
+            """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/div/p[1]/text()"""
         ).get()
 
         addr2 = response.xpath(
-            """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/div/p[2]/text()"""
+            """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/div/p[2]/text()"""
         ).get()
 
         address = f"{street}, {city}, {addr}, {addr2}"
