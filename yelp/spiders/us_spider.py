@@ -1,4 +1,5 @@
 import scrapy
+from scrapy.exceptions import CloseSpider
 import pendulum
 
 from yelp.items import ProfileItem, ReviewItem
@@ -14,15 +15,25 @@ class SpiderUS(scrapy.Spider):
         "https://www.yelp.com/biz/nespresso-boutique-new-york-6?start=0"
     ]
     profile_item = None
+    profile_crawler = True
 
-    
+    def __init__(self, profile_url=None, list_url=None, *args, **kwargs):
+        super(SpiderUS, self).__init__(*args, **kwargs)
+        if profile_url:
+            self.start_urls = [profile_url]
+        elif list_url:
+            self.profile_crawler = False
+        else:
+            # raise CloseSpider('ivalid_argument')
+            pass
+            
     def change_date_format(self, date):
         dt = pendulum.from_format(date, 'M/D/YYYY')
         return dt.to_date_string()
 
     def start_requests(self):
-        for url in self.start_urls:
-            yield scrapy.Request(url, self.parse_profile)
+        if self.profile_crawler:
+            yield scrapy.Request(self.start_urls[0], self.parse_profile)
     
     def parse_profile(self, response):
         self.profile_item = ProfileItem()
