@@ -8,12 +8,15 @@ class SpiderUS(scrapy.Spider):
     name = 'us_spider'
     allowed_domains = ['yelp.com']
     number = 20
+    page = 1
+    max_page_number = None
     start_urls = [
         "https://www.yelp.com/biz/nespresso-boutique-new-york-6?start=0"
     ]
     profile_item = None
+
     
-    def change_date_format(date):
+    def change_date_format(self, date):
         dt = pendulum.from_format(date, 'M/D/YYYY')
         return dt.to_date_string()
 
@@ -59,10 +62,17 @@ class SpiderUS(scrapy.Spider):
         self.profile_item['phone'] = phone
         self.profile_item['city'] = city_name
         self.profile_item['address'] = address
+
+        pagination = response.xpath(
+            """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[3]/section[2]/div[2]/div/div[4]/div[1]/span/text()"""
+        ).get(None)
+
+        self.max_page_number = pagination.split(" ")[-1]
         
         next_url = f"https://www.yelp.com/biz/nespresso-boutique-new-york-6?start={SpiderUS.number}"
-        if SpiderUS.number < 40:
+        if self.page < 2: #self.max_page_number:
             SpiderUS.number += 20
+            self.page += 1
             yield response.follow(next_url, callback=self.parse_reviews)
         else:
             SpiderUS.number = 0
@@ -86,7 +96,7 @@ class SpiderUS(scrapy.Spider):
             rating = rating.xpath('@aria-label').get().split(' ')[0]
             review_item['rating'] = int(rating)
 
-            date = SpiderUS.change_date_format(date)
+            date = self.change_date_format(date)
             review_item['date'] = date
 
             review_text_fragments = review.xpath('text()').getall()
@@ -102,8 +112,9 @@ class SpiderUS(scrapy.Spider):
             self.profile_item['reviews'] += review_items
 
         next_url = f"https://www.yelp.com/biz/nespresso-boutique-new-york-6?start={SpiderUS.number}"
-        if SpiderUS.number < 40:
+        if self.page < 2: #self.max_page_number:
             SpiderUS.number += 20
+            self.page += 1
             yield response.follow(next_url, callback=self.parse_reviews)
         else:
             SpiderUS.number = 0
