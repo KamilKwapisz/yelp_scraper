@@ -24,7 +24,7 @@ class SpiderUS(scrapy.Spider):
 
         categories = response.xpath(
             """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[1]/div/div/span[2]/span/a/text()"""
-        ).extract()
+        ).getall()
         category = " > ".join(categories)
 
         phone = response.xpath(
@@ -61,7 +61,7 @@ class SpiderUS(scrapy.Spider):
             """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[3]/section[2]/div[2]/div"""
         ).css("div[aria-label*='rating']")
 
-        dates = response.css(".arrange-unit-fill__373c0__17z0h > .text-color--mid__373c0__3G312::text").extract()
+        dates = response.css(".arrange-unit-fill__373c0__17z0h > .text-color--mid__373c0__3G312::text").getall()
 
         reviews = response.css(".comment__373c0__3EKjH .lemon--span__373c0__3997G")
 
@@ -76,7 +76,7 @@ class SpiderUS(scrapy.Spider):
             date = SpiderUS.change_date_format(date)
             review_item['date'] = date
 
-            review_text_fragments = review.xpath('text()').extract()
+            review_text_fragments = review.xpath('text()').getall()
             review_text = "".join(review_text_fragments)
             review_item['review'] = review_text
 
