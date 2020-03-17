@@ -5,6 +5,7 @@ class ProfileItem(scrapy.Item):
     name = scrapy.Field()
     phone = scrapy.Field()
     category = scrapy.Field()
+    street = scrapy.Field()
     address = scrapy.Field()
     city = scrapy.Field()
     reviews = scrapy.Field()
