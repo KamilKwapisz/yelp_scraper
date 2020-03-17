@@ -11,15 +11,18 @@ class SpiderUS(scrapy.Spider):
     start_urls = [
         "https://www.yelp.com/biz/nespresso-boutique-new-york-6?start=0"
     ]
-
+    profile_item = None
+    
     def change_date_format(date):
         dt = pendulum.from_format(date, 'M/D/YYYY')
         return dt.to_date_string()
-        
 
-    def parse(self, response):
-        # TODO do not collect toese data every single time
-        profile_item = ProfileItem()
+    def start_requests(self):
+        for url in self.start_urls:
+            yield scrapy.Request(url, self.parse_profile)
+    
+    def parse_profile(self, response):
+        self.profile_item = ProfileItem()
         name = response.css("h1::text").get()
 
         categories = response.xpath(
@@ -37,26 +40,36 @@ class SpiderUS(scrapy.Spider):
 
         city = response.xpath(
             """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/address/p[2]/span/text()"""
-        ).get()
+        ).get(None)
 
         addr = response.xpath(
             """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/div/p[1]/text()"""
-        ).get()
+        ).get(None)
 
         addr2 = response.xpath(
             """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/div/p[2]/text()"""
-        ).get()
+        ).get(None)
 
         address = f"{street}, {city}, {addr}, {addr2}"
 
         city_name = city.split(', ')[0]
 
-        profile_item['name'] = name
-        profile_item['category'] = category
-        profile_item['phone'] = phone
-        profile_item['city'] = city_name
-        profile_item['address'] = address
+        self.profile_item['name'] = name
+        self.profile_item['category'] = category
+        self.profile_item['phone'] = phone
+        self.profile_item['city'] = city_name
+        self.profile_item['address'] = address
+        
+        next_url = f"https://www.yelp.com/biz/nespresso-boutique-new-york-6?start={SpiderUS.number}"
+        if SpiderUS.number < 40:
+            SpiderUS.number += 20
+            yield response.follow(next_url, callback=self.parse_reviews)
+        else:
+            SpiderUS.number = 0
+            yield self.profile_item
 
+
+    def parse_reviews(self, response):
         ratings = response.xpath(
             """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[3]/section[2]/div[2]/div"""
         ).css("div[aria-label*='rating']")
@@ -83,14 +96,18 @@ class SpiderUS(scrapy.Spider):
 
             review_items.append(dict(review_item))
 
-        profile_item['reviews'] = review_items
-
-        yield profile_item
+        if not self.profile_item.get('reviews', None):
+            self.profile_item['reviews'] = review_items
+        else:
+            self.profile_item['reviews'] += review_items
 
         next_url = f"https://www.yelp.com/biz/nespresso-boutique-new-york-6?start={SpiderUS.number}"
         if SpiderUS.number < 40:
             SpiderUS.number += 20
-            yield response.follow(next_url, callback=self.parse)
+            yield response.follow(next_url, callback=self.parse_reviews)
+        else:
+            SpiderUS.number = 0
+            yield self.profile_item
 
 
 
