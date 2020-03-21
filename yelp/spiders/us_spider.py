@@ -1,8 +1,9 @@
 import scrapy
 from scrapy.exceptions import CloseSpider
-import pendulum
+from user_agent import generate_user_agent
 
 from yelp.items import ProfileItem, ReviewItem
+from yelp.parser import ProfileParser, ReviewParser
 
 
 class SpiderUS(scrapy.Spider):
@@ -11,127 +12,110 @@ class SpiderUS(scrapy.Spider):
     number = 20
     page = 1
     max_page_number = None
-    start_urls = [
-        "https://www.yelp.com/biz/nespresso-boutique-new-york-6?start=0"
-    ]
+
+    search_page = 1
+    profile_search_max_page = None
+    start_urls = []
     profile_item = None
-    profile_crawler = True
+    profile_links = list()
+
+    parsing_profile_page = True
+
+    profile_parser = ProfileParser()
+    review_parser = ReviewParser()
 
     def __init__(self, profile_url=None, list_url=None, *args, **kwargs):
         super(SpiderUS, self).__init__(*args, **kwargs)
         if profile_url:
+            self.parsing_profile_page = True
             self.start_urls = [profile_url]
         elif list_url:
-            self.profile_crawler = False
+            self.parsing_profile_page = False
+            self.start_urls = [list_url]
         else:
             # raise CloseSpider('ivalid_argument')
             pass
-            
-    def change_date_format(self, date):
-        dt = pendulum.from_format(date, 'M/D/YYYY')
-        return dt.to_date_string()
 
     def start_requests(self):
-        if self.profile_crawler:
-            yield scrapy.Request(self.start_urls[0], self.parse_profile)
-    
-    def parse_profile(self, response):
-        self.profile_item = ProfileItem()
-        name = response.css("h1::text").get()
-
-        categories = response.xpath(
-            """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[1]/div/div/span[2]/span/a/text()"""
-        ).getall()
-        category = " > ".join(categories)
-
-        phone = response.xpath(
-            """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[2]/div/div/section[2]/div/div[2]/div/div[2]/p[2]/text()"""
-        ).get(None)
-
-        street = response.xpath(
-            """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/address/p[1]/span/text()"""
-        ).get()
-
-        city = response.xpath(
-            """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/address/p[2]/span/text()"""
-        ).get(None)
-
-        addr = response.xpath(
-            """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/div/p[1]/text()"""
-        ).get(None)
-
-        addr2 = response.xpath(
-            """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/section[3]/div[2]/div[1]/div/div/div/div[1]/div/p[2]/text()"""
-        ).get(None)
-
-        address = f"{street}, {city}, {addr}, {addr2}"
-
-        city_name = city.split(', ')[0]
-
-        self.profile_item['name'] = name
-        self.profile_item['category'] = category
-        self.profile_item['phone'] = phone
-        self.profile_item['city'] = city_name
-        self.profile_item['address'] = address
-
-        pagination = response.xpath(
-            """//div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[3]/section[2]/div[2]/div/div[4]/div[1]/span/text()"""
-        ).get(None)
-
-        self.max_page_number = pagination.split(" ")[-1]
-        
-        next_url = f"https://www.yelp.com/biz/nespresso-boutique-new-york-6?start={SpiderUS.number}"
-        if self.page < 2: #self.max_page_number:
-            SpiderUS.number += 20
-            self.page += 1
-            yield response.follow(next_url, callback=self.parse_reviews)
+        if self.parsing_profile_page:
+            yield scrapy.Request(url=self.start_urls[0], callback=self.parse_profile)
         else:
-            SpiderUS.number = 0
+            yield scrapy.Request(self.start_urls[0], self.parse_profile_list)
+    
+    def get_next_url(self, url):
+        if "start=" in url:
+            start_index = url.index("t=") + 2
+            next_url = url[:start_index] + f"{self.number}"
+        else:
+            next_url = url + f"?start={self.number}"
+        return next_url
+    
+    def parse_profile_list(self, response):
+        pagination = response.xpath("//span[contains(text(), ' of ')]/text()").get()
+        self.profile_search_max_page = 2
+
+        links = response.css("h4 > span > a").css("::attr(href)").getall()
+        links = [link for link in links if link.startswith('/biz')]  # getting rid of sponsored
+        self.profile_links += links
+        self.profile_links = list(set(self.profile_links))
+
+        # if self.search_page < self.profile_search_max_page:
+        if self.search_page < 3:
+            paginator_div = response.css("div.pagination-links-container__373c0__1vHLX")
+            next_page_url = paginator_div.xpath(".//div/div[last()]/span/a/@href").get()
+            if next_page_url:
+                self.search_page += 1
+                yield response.follow(next_page_url, callback=self.parse_profile_list)
+        else:
+            try:
+                profile_link = self.profile_links.pop(0)
+                yield response.follow(profile_link, callback=self.parse_profile)
+            except IndexError:
+                print("#################DONE")
+
+
+    def parse_profile(self, response):
+        self.profile_item = self.profile_parser.parse_profile_data(response)
+
+        reviews = self.review_parser.parse_reviews(response)
+        self.profile_item['reviews'] += reviews
+
+        pagination = response.xpath("//span[contains(text(), 'Page ')]/text()").get()
+        # self.max_page_number = int(pagination.split(" ")[-1])
+        self.max_page_number = 3
+        
+        next_url = self.get_next_url(response.url)
+
+        if self.page < 3: #self.max_page_number:
+            self.number += 20
+            self.page += 1
+            yield response.follow(next_url, callback=self.parse_reviews, priority=2)
+        else:
+            self.page = 1
+            self.number = 0
             yield self.profile_item
 
+            if self.profile_links:
+                profile_link = self.profile_links.pop(0)
+                yield response.follow(profile_link, callback=self.parse_profile, priority=1)
 
     def parse_reviews(self, response):
-        ratings = response.xpath(
-            """//*[@id="wrap"]/div[3]/div/div[1]/div[3]/div/div/div[2]/div[1]/div[3]/section[2]/div[2]/div"""
-        ).css("div[aria-label*='rating']")
+        reviews = self.review_parser.parse_reviews(response)
+        self.profile_item['reviews'] += reviews
 
-        dates = response.css(".arrange-unit-fill__373c0__17z0h > .text-color--mid__373c0__3G312::text").getall()
+        next_url = self.get_next_url(response.url)
 
-        reviews = response.css(".comment__373c0__3EKjH .lemon--span__373c0__3997G")
-
-        review_items = list()
-
-        for rating, date, review in zip(ratings, dates, reviews):
-            review_item = ReviewItem()
-
-            rating = rating.xpath('@aria-label').get().split(' ')[0]
-            review_item['rating'] = int(rating)
-
-            date = self.change_date_format(date)
-            review_item['date'] = date
-
-            review_text_fragments = review.xpath('text()').getall()
-            review_text = "".join(review_text_fragments)
-            review_item['review'] = review_text
-
-
-            review_items.append(dict(review_item))
-
-        if not self.profile_item.get('reviews', None):
-            self.profile_item['reviews'] = review_items
-        else:
-            self.profile_item['reviews'] += review_items
-
-        next_url = f"https://www.yelp.com/biz/nespresso-boutique-new-york-6?start={SpiderUS.number}"
-        if self.page < 2: #self.max_page_number:
-            SpiderUS.number += 20
+        if self.page < 3: #self.max_page_number:
+            self.number += 20
             self.page += 1
             yield response.follow(next_url, callback=self.parse_reviews)
         else:
-            SpiderUS.number = 0
+            self.number = 0
+            self.page = 1
             yield self.profile_item
 
-
-
-
-
+            if self.profile_links:
+                self.page = 1
+                self.number = 0
+                profile_link = self.profile_links.pop(0)
+                yield response.follow(profile_link, callback=self.parse_profile, priority=2)
