@@ -1,3 +1,5 @@
+import sys
+
 import scrapy
 from scrapy.exceptions import CloseSpider
 
@@ -64,8 +66,7 @@ class SpiderUS(scrapy.Spider):
         self.profile_links += links
         self.remove_link_duplicates()
 
-        # if self.search_page < self.profile_search_max_page:
-        if self.search_page < 3:
+        if self.search_page < self.search_max_page:
             paginator_div = response.css("div.pagination-links-container__373c0__1vHLX")
             next_page_url = paginator_div.xpath(".//div/div[last()]/span/a/@href").get()
             if next_page_url:
@@ -89,7 +90,7 @@ class SpiderUS(scrapy.Spider):
 
         next_url = self.get_next_url(response.url)
 
-        if self.profile_page < 3:  # self.max_page_number:
+        if self.profile_page < self.max_page_number:
             self.number += 20
             self.profile_page += 1
             yield response.follow(next_url, callback=self.parse_reviews, priority=2)
@@ -108,7 +109,7 @@ class SpiderUS(scrapy.Spider):
 
         next_url = self.get_next_url(response.url)
 
-        if self.profile_page < 3: #self.max_page_number:
+        if self.profile_page < self.max_page_number:
             self.number += 20
             self.profile_page += 1
             yield response.follow(next_url, callback=self.parse_reviews)
