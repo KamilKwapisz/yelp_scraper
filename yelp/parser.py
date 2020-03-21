@@ -16,16 +16,16 @@ class ProfileParser:
         profile_item['reviews'] = []
 
         return profile_item
-        
+
     def __parse_name(self, response):
         name = response.css("h1::text").get()
         return name
-    
+
     def __parse_category(self, response):
         categories = response.css(".text-size--large__373c0__1568g .link-size--inherit__373c0__2JXk5::text").getall()
         category = " > ".join(categories)
         return category
-    
+
     def __parse_phone(self, response):
         phone = response.css(".icon--24-phone").xpath("../../div[2]/p[2]/text()").get()
         return phone
@@ -41,14 +41,14 @@ class ProfileParser:
         else:
             address = None
             city = None
-        
+
         try:
             city_name = city.split(', ')[0]
         except AttributeError:
             city_name = None
-        
+
         return address, city_name
-    
+
 
 class ReviewParser:
 
@@ -60,6 +60,26 @@ class ReviewParser:
         else:
             return dt.to_date_string()
 
+    def __parse_rating(self, review):
+        rating_text = review.css("div[aria-label*='rating']").xpath("@aria-label").get()
+        try:
+            rating = rating_text.split(' ')[0]
+            rating = int(rating)
+        except (ValueError, AttributeError):
+            rating = None
+        finally:
+            return rating
+
+    def __parse_date(self, review):
+        date = review.xpath(""".//span[contains(text(),'/20')]/text()""").get()
+        date = self.change_date_format(date)
+        return date
+
+    def __parse_review_text(self, review):
+        span = review.xpath(".//span[@lang]").css("::text").getall()
+        review_text = "".join(span).replace("\xa0", "")
+        return review_text
+
     def parse_reviews(self, response):
         all_reviews = response.css(".layout-stack-small__373c0__3cHex")
 
@@ -67,22 +87,13 @@ class ReviewParser:
         for review in all_reviews:
             review_item = ReviewItem()
 
-            rating = review.css("div[aria-label*='rating']").xpath("@aria-label").get()
-            try:
-                rating = rating.split(' ')[0]
-                review_item['rating'] = int(rating)
-            except (ValueError, AttributeError):
-                review_item['rating'] = None
+            review_item['rating'] = self.__parse_rating(review)
 
-            date = review.xpath(""".//span[contains(text(),'/20')]/text()""").get()
-            date = self.change_date_format(date)
-            review_item['date'] = date
+            review_item['date'] = self.__parse_date(review)
 
-            span = review.xpath(".//span[@lang]").css("::text").getall()
-            review_text = "".join(span).replace("\xa0", "")
-            review_item['review'] = review_text
+            review_item['review'] = self.__parse_review_text(review)
 
-            if review_text and rating and date:
+            if review_item['rating'] and review_item['date'] and review_item['review']:
                 review_items.append(dict(review_item))
 
         return review_items
