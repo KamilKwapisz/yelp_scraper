@@ -10,7 +10,7 @@ class ProfileParser:
         profile_item['name'] = self.__parse_name(response)
         profile_item['category'] = self.__parse_category(response)
         profile_item['phone'] = self.__parse_phone(response)
-        city, address = self.__parse_address(response)
+        address, city = self.__parse_address(response)
         profile_item['city'] = city
         profile_item['address'] = address
         profile_item['reviews'] = []

@@ -70,6 +70,8 @@ DOWNLOADER_MIDDLEWARES = {
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
    'yelp.pipelines.YelpPipeline': 300,
+   'yelp.pipelines.DuplicationDetectorPipeline': 400,
+   'yelp.pipelines.WriterPipeline': 800,
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)

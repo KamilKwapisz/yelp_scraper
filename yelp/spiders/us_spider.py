@@ -42,6 +42,9 @@ class SpiderUS(scrapy.Spider):
         else:
             yield scrapy.Request(self.start_urls[0], self.parse_profile_list)
     
+    def remove_link_duplicates(self):
+        self.profile_links = list(set(self.profile_links))
+
     def get_next_url(self, url):
         if "start=" in url:
             start_index = url.index("t=") + 2
@@ -52,12 +55,14 @@ class SpiderUS(scrapy.Spider):
     
     def parse_profile_list(self, response):
         pagination = response.xpath("//span[contains(text(), ' of ')]/text()").get()
-        self.profile_search_max_page = 2
+        self.profile_search_max_page = int(pagination.split(" ")[-1])
+        # self.profile_search_max_page = 2
 
         links = response.css("h4 > span > a").css("::attr(href)").getall()
         links = [link for link in links if link.startswith('/biz')]  # getting rid of sponsored
+
         self.profile_links += links
-        self.profile_links = list(set(self.profile_links))
+        self.remove_link_duplicates()
 
         # if self.search_page < self.profile_search_max_page:
         if self.search_page < 3:
@@ -71,7 +76,7 @@ class SpiderUS(scrapy.Spider):
                 profile_link = self.profile_links.pop(0)
                 yield response.follow(profile_link, callback=self.parse_profile)
             except IndexError:
-                print("#################DONE")
+                pass  # scraping is done
 
 
     def parse_profile(self, response):
@@ -81,8 +86,7 @@ class SpiderUS(scrapy.Spider):
         self.profile_item['reviews'] += reviews
 
         pagination = response.xpath("//span[contains(text(), 'Page ')]/text()").get()
-        # self.max_page_number = int(pagination.split(" ")[-1])
-        self.max_page_number = 3
+        self.max_page_number = int(pagination.split(" ")[-1])
         
         next_url = self.get_next_url(response.url)
 
