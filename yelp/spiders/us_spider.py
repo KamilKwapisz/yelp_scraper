@@ -45,9 +45,9 @@ class SpiderUS(scrapy.Spider):
     def get_next_url(self, url):
         if "start=" in url:
             start_index = url.index("t=") + 2
-            next_url = url[:start_index] + f"{SpiderUS.number}"
+            next_url = url[:start_index] + f"{self.number}"
         else:
-            next_url = url + f"?start={SpiderUS.number}"
+            next_url = url + f"?start={self.number}"
         return next_url
     
     def parse_profile_list(self, response):
@@ -67,7 +67,6 @@ class SpiderUS(scrapy.Spider):
                 self.search_page += 1
                 yield response.follow(next_page_url, callback=self.parse_profile_list)
         else:
-            print(self.profile_links)
             try:
                 profile_link = self.profile_links.pop(0)
                 yield response.follow(profile_link, callback=self.parse_profile)
@@ -76,60 +75,47 @@ class SpiderUS(scrapy.Spider):
 
 
     def parse_profile(self, response):
-        print("PROFILEEEEEEEEEEEEEEE", response.url)
-
         self.profile_item = self.profile_parser.parse_profile_data(response)
 
         reviews = self.review_parser.parse_reviews(response)
-
         self.profile_item['reviews'] += reviews
-        print("REVS AFTER 1 REQ IS ", len(self.profile_item['reviews']))
 
         pagination = response.xpath("//span[contains(text(), 'Page ')]/text()").get()
         # self.max_page_number = int(pagination.split(" ")[-1])
         self.max_page_number = 3
         
         next_url = self.get_next_url(response.url)
-        print(next_url, self.page)
 
         if self.page < 3: #self.max_page_number:
-            SpiderUS.number += 20
+            self.number += 20
             self.page += 1
-            print("FOLLOWING review")
             yield response.follow(next_url, callback=self.parse_reviews, priority=2)
         else:
             self.page = 1
-            SpiderUS.number = 0
-            print("here yielding", response.url)
+            self.number = 0
             yield self.profile_item
 
             if self.profile_links:
-                SpiderUS.number = 0
-                self.page = 1
                 profile_link = self.profile_links.pop(0)
                 yield response.follow(profile_link, callback=self.parse_profile, priority=1)
 
     def parse_reviews(self, response):
-        print("PARSING  ", response.url)
-
         reviews = self.review_parser.parse_reviews(response)
         self.profile_item['reviews'] += reviews
 
         next_url = self.get_next_url(response.url)
-        print(next_url, self.page)
 
         if self.page < 3: #self.max_page_number:
-            SpiderUS.number += 20
+            self.number += 20
             self.page += 1
             yield response.follow(next_url, callback=self.parse_reviews)
         else:
-            SpiderUS.number = 0
+            self.number = 0
             self.page = 1
-            print("here222 yielding", len(self.profile_item['reviews']))
             yield self.profile_item
 
             if self.profile_links:
                 self.page = 1
-                SpiderUS.number = 0
+                self.number = 0
                 profile_link = self.profile_links.pop(0)
                 yield response.follow(profile_link, callback=self.parse_profile, priority=2)
