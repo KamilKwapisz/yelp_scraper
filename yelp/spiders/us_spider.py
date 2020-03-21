@@ -33,8 +33,8 @@ class SpiderUS(scrapy.Spider):
             self.parsing_profile_page = False
             self.start_urls = [list_url]
         else:
-            # raise CloseSpider('ivalid_argument')
-            pass
+            self.logger.info('Invalid arguments')
+            raise CloseSpider('ivalid_argument')
 
     def start_requests(self):
         if self.parsing_profile_page:
