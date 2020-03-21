@@ -9,3 +9,5 @@ Yelp scraper for test task
 I haven't done the Portugal version. I've seen that the reviews are loaded from JS. I've tried using Splash but faced some serious problems with docker, sorry. 
 
 I've sticked with passing profile_url or list_url as a typical scrapy parameter. I hope it's okay :) 
+
+I've done setup with proxies, but it's hard to find a good one that's free, so I commented it out. 
