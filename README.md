@@ -3,6 +3,7 @@ Yelp scraper for test task
 
 # Running
 ```scrapy crawl us_spider -a profile_url="https://www.yelp.com/biz/nespresso-boutique-new-york-6"```
+
 ```scrapy crawl us_spider -a list_url="https://www.yelp.com/search?cflt=hotels&find_loc=New+York%2C+NY"```
 
 # Comment
